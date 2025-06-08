@@ -1,17 +1,21 @@
 version: "2.2"
 services:
   jobmanager:
-    image: flink:2.0.0-scala_2.12
+    image: flink-paimon:1.20
     ports:
       - "8081:8081"
     command: jobmanager
     environment:
       - |
         FLINK_PROPERTIES=
-        jobmanager.rpc.address: jobmanager        
+        jobmanager.rpc.address: jobmanager
+        state.checkpoints.dir: file:///flink-data/jm/checkpoints
+        state.savepoints.dir: file:///flink-data/jm/savepoints
+    volumes:
+      - flink_data:/flink-data
 
   taskmanager:
-    image: flink:2.0.0-scala_2.12
+    image: flink-paimon:1.20
     depends_on:
       - jobmanager
     command: taskmanager
@@ -20,9 +24,12 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
-        taskmanager.numberOfTaskSlots: 2        
+        taskmanager.numberOfTaskSlots: 2
+    volumes:
+      - flink_data:/flink-data/tm
+
   sql-client:
-    image: flink:2.0.0-scala_2.12
+    image: flink-paimon:1.20
     command: bin/sql-client.sh
     depends_on:
       - jobmanager
@@ -31,3 +38,45 @@ services:
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
         rest.address: jobmanager
+
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://localhost:9092,CONTROLLER://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3 
+    volumes:
+      - kafka_data:/var/lib/kafka/data  # 挂载Kafka数据目录
+      - kafka_config:/etc/kafka/config  # 挂载配置文件目录（可选）
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: bigdata
+      MYSQL_USER: user
+      MYSQL_PASSWORD: 123456
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./data/mysql/conf/my.cnf:/etc/mysql/conf.d/my.cnf
+volumes:
+  mysql_data: 
+  kafka_data: 
+  kafka_config: 
+  flink_data:

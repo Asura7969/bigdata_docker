@@ -1,4 +1,7 @@
-FROM flink:2.0.0-java11 AS base
+FROM flink:1.20.1-scala_2.12-java11 AS base
 
-COPY paimon-flink-2.0-1.2-SNAPSHOT.jar /opt/flink/lib/
+COPY lib/* /opt/flink/lib/
+
+
+
 
